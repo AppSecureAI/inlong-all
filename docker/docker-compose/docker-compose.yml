@@ -103,11 +103,15 @@ services:
       - "8008:8008"
     volumes:
       - ./collect-data:/data/collect-data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
 
   audit:
     image: inlong/audit:${VERSION_TAG}
     container_name: audit
-    privileged: true
     depends_on:
       mysql:
         condition: service_healthy
@@ -121,6 +125,11 @@ services:
       - MQ_TYPE=pulsar
     ports:
       - "10081:10081"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
 
   # flink jobmanager
   jobmanager:
@@ -133,6 +142,11 @@ services:
     ports:
       - "8081:8081"
     command: jobmanager
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
 
   # flink taskmanager
   taskmanager:
@@ -144,3 +158,8 @@ services:
         jobmanager.rpc.address: jobmanager
         taskmanager.numberOfTaskSlots: 2
     command: taskmanager
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
