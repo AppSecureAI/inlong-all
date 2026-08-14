@@ -171,7 +171,7 @@ public class ServiceDiscoveryUtils {
                         .setConnectTimeout(10000).setSocketTimeout(30000).build();
                 SSLContext sslContext = SSLContexts.custom().build();
                 SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext,
-                        new String[]{"TLSv1"}, null,
+                        new String[]{"TLSv1.2", "TLSv1.3"}, null,
                         SSLConnectionSocketFactory.getDefaultHostnameVerifier());
                 httpClient = HttpClients.custom().setDefaultHeaders(headers)
                         .setDefaultRequestConfig(requestConfig).setSSLSocketFactory(sslsf).build();
