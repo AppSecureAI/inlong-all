@@ -47,6 +47,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * source base clase
@@ -153,6 +157,20 @@ public abstract class BaseSource
     protected int maxThreads = 32;
 
     protected int acceptorThreads = 1;
+
+    private static final Set<String> ALLOWED_SERVICE_DECODER_CLASSES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.dataproxy.source.DefaultServiceDecoder")));
+
+    private static final Set<String> ALLOWED_MSG_FACTORY_CLASSES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.dataproxy.source.ServerMessageFactory")));
+
+    private static void validateAllowedClass(String className, Set<String> allowedClasses, String paramName) {
+        if (!allowedClasses.contains(className)) {
+            throw new FlumeException("Disallowed class name for " + paramName + ": " + className);
+        }
+    }
 
     public BaseSource() {
         super();
@@ -321,7 +339,9 @@ public abstract class BaseSource
                 .append(" and serviceDecoderName=").append(serviceDecoderName).toString());
         ChannelInitializer fac = null;
         try {
+            validateAllowedClass(serviceDecoderName, ALLOWED_SERVICE_DECODER_CLASSES, "serviceDecoderName");
             ServiceDecoder serviceDecoder = (ServiceDecoder) Class.forName(serviceDecoderName).newInstance();
+            validateAllowedClass(msgFactoryName, ALLOWED_MSG_FACTORY_CLASSES, "msgFactoryName");
             Class<? extends ChannelInitializer> clazz =
                     (Class<? extends ChannelInitializer>) Class.forName(msgFactoryName);
             Constructor ctor = clazz.getConstructor(BaseSource.class, ChannelGroup.class,
