@@ -1,0 +1,75 @@
+name: AppSecAI Security Analysis
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  OPENGREP_VERSION: "v1.16.1"
+  APPSECAI_TARGET_BRANCH: cve-2023-35088
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    env:
+      PROCESSING_MODE: group_cc
+      AUTO_CREATE_PRS: "true"
+    steps:
+      - name: AppSecAI workflow preflight
+        env:
+          APPSECAI_API_URL: https://gh.intg.appsecai.net
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_NAME}" != "${APPSECAI_TARGET_BRANCH}" ]]; then
+            echo "::error title=Wrong scan branch::Run this workflow from the '${APPSECAI_TARGET_BRANCH}' branch, not '${GITHUB_REF_NAME}'."
+            exit 1
+          fi
+
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::error title=AppSecAI OIDC permission missing::Add 'id-token: write' under the workflow or job permissions block before running scanners."
+            exit 1
+          fi
+
+          workflow_path="${GITHUB_WORKFLOW_REF#${GITHUB_REPOSITORY}/}"
+          workflow_path="${workflow_path%@*}"
+          if ! curl -fsS \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/contents/${workflow_path}?ref=${GITHUB_SHA}" >/dev/null; then
+            echo "::error title=AppSecAI contents permission missing::Add 'contents: read' under the workflow or job permissions block."
+            exit 1
+          fi
+
+          oidc_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${APPSECAI_API_URL%/}"
+          if ! curl -fsS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${oidc_url}" | python3 -c 'import json,sys; data=json.load(sys.stdin); sys.exit(0 if data.get("value") else 1)'; then
+            echo "::error title=AppSecAI OIDC token request failed::GitHub did not issue an OIDC token for AppSecAI. Confirm 'id-token: write' is set."
+            exit 1
+          fi
+
+          echo "AppSecAI workflow preflight passed for ${GITHUB_REF_NAME}."
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download OpenGrep
+        run: |
+          curl -fsSL "https://github.com/opengrep/opengrep/releases/download/${OPENGREP_VERSION}/opengrep_manylinux_x86" -o opengrep
+          chmod +x opengrep
+
+      - name: Run OpenGrep
+        run: |
+          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
+
+      - name: AppSecAI Security Analysis
+        uses: AppSecureAI/submit-run-action@main
+        with:
+          api-url: https://gh.intg.appsecai.net
+          file: opengrep-results.sarif
