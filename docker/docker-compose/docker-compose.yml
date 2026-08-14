@@ -90,6 +90,9 @@ services:
   agent:
     image: inlong/agent:${VERSION_TAG}
     container_name: agent
+    read_only: true
+    tmpfs:
+      - /tmp
     depends_on:
       - manager
       - dataproxy
