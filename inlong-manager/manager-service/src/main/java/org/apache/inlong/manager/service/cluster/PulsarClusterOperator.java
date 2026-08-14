@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import javax.net.ssl.SSLSocketFactory;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +57,8 @@ public class PulsarClusterOperator extends AbstractClusterOperator {
     private static final Logger LOGGER = LoggerFactory.getLogger(PulsarClusterOperator.class);
 
     private static final String SERVICE_URL_PREFIX = "pulsar://";
+
+    private static final String SERVICE_URL_SSL_PREFIX = "pulsar+ssl://";
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -146,10 +149,13 @@ public class PulsarClusterOperator extends AbstractClusterOperator {
     private void testConnectServiceUrl(String serviceUrl) {
         // test connect for Pulsar ServiceUrl
         Preconditions.expectNotNull(serviceUrl, "Pulsar ServiceUrl is empty");
-        Preconditions.expectTrue(serviceUrl.startsWith(SERVICE_URL_PREFIX),
-                String.format("Pulsar ServiceUrl=%s should starts with %s", serviceUrl, SERVICE_URL_PREFIX));
+        boolean isSsl = serviceUrl.startsWith(SERVICE_URL_SSL_PREFIX);
+        Preconditions.expectTrue(isSsl || serviceUrl.startsWith(SERVICE_URL_PREFIX),
+                String.format("Pulsar ServiceUrl=%s should starts with %s or %s", serviceUrl, SERVICE_URL_PREFIX,
+                        SERVICE_URL_SSL_PREFIX));
 
-        String hostPortStr = serviceUrl.replaceAll(SERVICE_URL_PREFIX, "");
+        String prefix = isSsl ? SERVICE_URL_SSL_PREFIX : SERVICE_URL_PREFIX;
+        String hostPortStr = serviceUrl.substring(prefix.length());
 
         boolean successConnect = Arrays.stream(hostPortStr.split(InlongConstants.COMMA))
                 // Only when all addresses are reachable, it's considered successful
@@ -162,7 +168,9 @@ public class PulsarClusterOperator extends AbstractClusterOperator {
                     String host = hostPortArr[0];
                     int port = Integer.parseInt(hostPortArr[1]);
 
-                    try (Socket socket = new Socket()) {
+                    try (Socket socket = isSsl
+                            ? SSLSocketFactory.getDefault().createSocket()
+                            : new Socket()) {
                         SocketAddress socketAddress = new InetSocketAddress(host, port);
                         socket.connect(socketAddress, 30000);
                         return true;
