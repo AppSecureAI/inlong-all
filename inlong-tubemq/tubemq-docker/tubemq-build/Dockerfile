@@ -33,5 +33,9 @@ COPY --from=protobuf /protobuf/usr/bin/* /usr/bin/
 COPY --from=protobuf /protobuf/usr/include/* /usr/include/
 COPY --from=protobuf /protobuf/usr/lib/* /usr/lib/
 # ADD settings.xml /root/.m2/
+# create non-root user and set workdir ownership before switching
+RUN useradd --uid 1001 --gid 0 --create-home --shell /bin/false tubemq \
+    && chown -R 1001:0 /tubemq/
+USER 1001
 # mvn command
 ENTRYPOINT ["/usr/bin/mvn"]
