@@ -28,7 +28,7 @@ import org.apache.pulsar.client.api.PulsarClient;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * Builder of pulsar single topic fetcher.
@@ -74,7 +74,7 @@ public class PulsarTopicFetcherBuilderImpl extends AbstractTopicFetcherBuilder {
         interceptor = Optional.ofNullable(interceptor).orElse(new MsgTimeInterceptor());
         interceptor.configure(firstTopic);
         String key = Optional.ofNullable(fetchKey)
-                .orElse(firstTopic.getInLongCluster().getClusterId() + new Random().nextLong());
+                .orElse(firstTopic.getInLongCluster().getClusterId() + new SecureRandom().nextLong());
         TopicFetcher fetcher =
                 new PulsarMultiTopicsFetcher(topics, context, interceptor, deserializer, pulsarClient, key);
         if (!fetcher.init()) {
