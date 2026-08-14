@@ -78,11 +78,17 @@
                 } : decodeURIComponent,
                 getRet = function (tkey) {
                     var tret = '';
-                    if (result = new RegExp('(?:^|; )' + encodeURIComponent(tkey) + '=([^;]*)').exec(document.cookie)) {
-                        try {
-                            tret = decode(result[1]);
-                        } catch (e) {
-                            tret = result[1];
+                    var encodedKey = encodeURIComponent(tkey);
+                    var cookies = document.cookie ? document.cookie.split('; ') : [];
+                    for (var i = 0; i < cookies.length; i++) {
+                        var eqIdx = cookies[i].indexOf('=');
+                        if (eqIdx !== -1 && cookies[i].substring(0, eqIdx) === encodedKey) {
+                            try {
+                                tret = decode(cookies[i].substring(eqIdx + 1));
+                            } catch (e) {
+                                tret = cookies[i].substring(eqIdx + 1);
+                            }
+                            break;
                         }
                     }
                     return tret;
