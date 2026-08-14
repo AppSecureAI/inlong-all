@@ -30,6 +30,12 @@ services:
       timeout: 20s
       interval: 2s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/mysqld
     volumes:
       - ./mysql:/var/lib/mysql
       - ./sql:/docker-entrypoint-initdb.d
@@ -40,6 +46,12 @@ services:
     ports:
       - "6650:6650"
       - "8080:8080"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /pulsar/logs
     volumes:
       - ./pulsar/data:/pulsar/data
     command: bin/pulsar standalone
@@ -52,6 +64,11 @@ services:
         condition: service_healthy
     ports:
       - "8083:8083"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       - JDBC_URL=mysql:3306
       - USERNAME=root
@@ -68,6 +85,13 @@ services:
       - manager
     ports:
       - "80:80"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
     environment:
       - MANAGER_API_ADDRESS=manager:8083
 
@@ -79,6 +103,11 @@ services:
     ports:
       - "46801:46801"
       - "46802:46802"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       - MANAGER_OPENAPI_IP=manager
       - MANAGER_OPENAPI_PORT=8083
