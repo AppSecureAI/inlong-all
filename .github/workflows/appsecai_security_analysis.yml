@@ -66,7 +66,45 @@ jobs:
 
       - name: Run OpenGrep
         run: |
-          ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
+          ./opengrep scan \
+            --sarif \
+            --sarif-output=opengrep-results.sarif \
+            --config auto \
+            --config .opengrep/inlong-cve-2023-35088.yml \
+            . || true
+
+      - name: Verify CVE-2023-35088 finding
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+
+          expected_rule = "opengrep.apache-inlong-audit-clickhouse-sql-injection"
+          expected_path = (
+              "inlong-manager/manager-service/src/main/java/org/apache/inlong/"
+              "manager/service/core/impl/AuditServiceImpl.java"
+          )
+
+          with open("opengrep-results.sarif", encoding="utf-8") as sarif_file:
+              sarif = json.load(sarif_file)
+
+          results = [
+              result
+              for run in sarif.get("runs", [])
+              for result in run.get("results", [])
+              if result.get("ruleId") == expected_rule
+          ]
+          paths = {
+              location["physicalLocation"]["artifactLocation"]["uri"]
+              for result in results
+              for location in result.get("locations", [])
+          }
+          if not results or expected_path not in paths:
+              print(f"Expected {expected_rule} in {expected_path}; found {len(results)} result(s).")
+              sys.exit(1)
+          print(f"Verified {len(results)} targeted CVE-2023-35088 finding(s) in {expected_path}.")
+          PY
 
       - name: AppSecAI Security Analysis
         uses: AppSecureAI/automation-action@v1
