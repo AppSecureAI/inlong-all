@@ -84,6 +84,10 @@ public class PartitionLeaderElectionRunnable implements Runnable {
                     HdfsIdConfig idConfig = entry.getValue();
                     // get partition list of table
                     String tableName = idConfig.getHiveTableName();
+                    if (tableName == null || !tableName.matches("[a-zA-Z0-9_\\.]+")) {
+                        LOG.warn("Skipping id:{} due to invalid Hive table name", entry.getKey());
+                        continue;
+                    }
                     ResultSet rs = stat.executeQuery("show partitions " + tableName);
                     Set<String> partitionSet = new HashSet<>();
                     while (rs.next()) {
