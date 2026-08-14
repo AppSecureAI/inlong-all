@@ -60,12 +60,8 @@ import org.slf4j.LoggerFactory;
 import javax.net.ssl.SSLContext;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -424,19 +420,17 @@ public class ProxyConfigManager extends Thread {
             LOGGER.warn(" userName(" + userName + ") is not available");
             return null;
         }
-        EncryptConfigEntry entry;
-        FileInputStream fis = null;
-        ObjectInputStream is = null;
         rw.readLock().lock();
         try {
             File file = new File(clientConfig.getConfStoreBasePath() + userName + ".pubKey");
             if (file.exists()) {
-                fis = new FileInputStream(file);
-                is = new ObjectInputStream(fis);
-                entry = (EncryptConfigEntry) is.readObject();
-                // is.close();
-                fis.close();
-                return entry;
+                FileReader reader = new FileReader(file);
+                JsonObject jsonObject = jsonParser.parse(reader).getAsJsonObject();
+                reader.close();
+                String storedUserName = jsonObject.get("userName").getAsString();
+                String version = jsonObject.get("version").getAsString();
+                String pubKey = jsonObject.get("pubKey").getAsString();
+                return new EncryptConfigEntry(storedUserName, version, pubKey);
             } else {
                 return null;
             }
@@ -444,45 +438,29 @@ public class ProxyConfigManager extends Thread {
             LOGGER.error("Read " + userName + " stored PubKeyEntry error ", e1);
             return null;
         } finally {
-            if (fis != null) {
-                try {
-                    fis.close();
-                } catch (Throwable e2) {
-                    //
-                }
-            }
             rw.readLock().unlock();
         }
     }
 
     private void storePubKeyEntry(EncryptConfigEntry entry) {
-        FileOutputStream fos = null;
-        ObjectOutputStream p = null;
         rw.writeLock().lock();
         try {
             File file = new File(clientConfig.getConfStoreBasePath() + entry.getUserName() + ".pubKey");
             if (!file.getParentFile().exists()) {
                 file.getParentFile().mkdir();
             }
-            if (!file.exists()) {
-                file.createNewFile();
-            }
-            fos = new FileOutputStream(file);
-            p = new ObjectOutputStream(fos);
-            p.writeObject(entry);
-            p.flush();
-            // p.close();
+            JsonObject jsonObject = new JsonObject();
+            jsonObject.addProperty("userName", entry.getUserName());
+            jsonObject.addProperty("version", entry.getVersion());
+            jsonObject.addProperty("pubKey", entry.getPubKey());
+            FileWriter fileWriter = new FileWriter(file);
+            gson.toJson(jsonObject, fileWriter);
+            fileWriter.flush();
+            fileWriter.close();
         } catch (Throwable e) {
             LOGGER.error("store EncryptConfigEntry " + entry.toString() + " exception ", e);
             e.printStackTrace();
         } finally {
-            if (fos != null) {
-                try {
-                    fos.close();
-                } catch (Throwable e2) {
-                    //
-                }
-            }
             rw.writeLock().unlock();
         }
     }
@@ -795,7 +773,7 @@ public class ProxyConfigManager extends Thread {
                 .setSocketTimeout(clientConfig.getManagerSocketTimeout()).build();
         SSLContext sslContext = SSLContexts.custom().build();
         SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext,
-                new String[]{"TLSv1"}, null,
+                new String[]{"TLSv1.2", "TLSv1.3"}, null,
                 SSLConnectionSocketFactory.getDefaultHostnameVerifier());
         httpClient = HttpClients.custom().setDefaultHeaders(headers).setDefaultRequestConfig(requestConfig)
                 .setSSLSocketFactory(sslsf).build();
