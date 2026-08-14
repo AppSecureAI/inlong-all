@@ -25,6 +25,8 @@ services:
       - "3306:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=inlong
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: "/usr/bin/mysql --user=root --password=inlong --execute \"SHOW DATABASES;\""
       timeout: 20s
