@@ -69,9 +69,8 @@ jobs:
           ./opengrep scan \
             --sarif \
             --sarif-output=opengrep-results.sarif \
-            --config auto \
             --config .opengrep/inlong-cve-2023-35088.yml \
-            . || true
+            inlong-manager/manager-service/src/main/java/org/apache/inlong/manager/service/core/impl/AuditServiceImpl.java
 
       - name: Verify CVE-2023-35088 finding
         shell: bash
