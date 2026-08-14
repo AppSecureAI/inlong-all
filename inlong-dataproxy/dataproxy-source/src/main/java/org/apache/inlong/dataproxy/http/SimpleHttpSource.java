@@ -48,12 +48,22 @@ import org.slf4j.LoggerFactory;
 import javax.servlet.DispatcherType;
 
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class SimpleHttpSource extends HttpBaseSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(HTTPSource.class);
+
+    private static final Set<String> ALLOWED_HANDLER_CLASSES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.dataproxy.http.SimpleMessageHandler",
+                    "org.apache.inlong.dataproxy.source.ServerMessageHandler"
+            )));
 
     public static final String POOL_SIZE = "poolSize";
     public static final String IDEL_TIME = "idelTime";
@@ -121,6 +131,10 @@ public class SimpleHttpSource extends HttpBaseSource {
         super.start();
         try {
 
+            if (!ALLOWED_HANDLER_CLASSES.contains(messageHandlerName)) {
+                LOG.warn("Rejected MessageHandler class not in the allowed list");
+                return;
+            }
             @SuppressWarnings("unchecked")
             Class<? extends MessageHandler> clazz =
                     (Class<? extends MessageHandler>) Class.forName(messageHandlerName);
