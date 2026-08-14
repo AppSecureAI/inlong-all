@@ -21,7 +21,16 @@ const path = require('path');
 const readline = require('readline');
 const { readFile, wirteFile, getBanner } = require('./utils');
 
+const validatePathSegment = segment => {
+  if (!/^[a-zA-Z0-9]+$/.test(segment)) {
+    throw new Error(`[Error] Invalid input: "${segment}" contains disallowed characters.`);
+  }
+  return segment;
+};
+
 const getMetaDir = (metaType, namespace, saveAs) => {
+  namespace = validatePathSegment(namespace);
+  saveAs = validatePathSegment(saveAs);
   const dirMap = {
     group: [
       // from:
