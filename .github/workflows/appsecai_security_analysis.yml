@@ -69,7 +69,7 @@ jobs:
           ./opengrep scan --sarif --sarif-output=opengrep-results.sarif --config auto . || true
 
       - name: AppSecAI Security Analysis
-        uses: AppSecureAI/submit-run-action@main
+        uses: AppSecureAI/automation-action@v1
         with:
           api-url: https://gh.intg.appsecai.net
           file: opengrep-results.sarif
