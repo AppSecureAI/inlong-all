@@ -90,7 +90,7 @@ jobs:
 
       - name: Upload binary package
         if: ${{ success() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
         with:
           name: apache-inlong-${{ env.VERSION }}-bin.tar.gz
           path: ./inlong-distribution/target/apache-inlong-${{ env.VERSION }}-bin.tar.gz
@@ -104,7 +104,7 @@ jobs:
 
       - name: Upload sort connectors package for flink v1.15
         if: ${{ success() }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ff15f0306b3f739f7b6fd43fb5d26cd321bd4de5 # v3
         with:
           name: apache-inlong-${{ env.VERSION }}-sort-connectors-flink-v1.15.tar.gz
           path: ./inlong-distribution/target/apache-inlong-${{ env.VERSION }}-sort-connectors-flink-v1.15.tar.gz
