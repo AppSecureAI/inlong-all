@@ -55,9 +55,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * source base class
@@ -72,6 +74,8 @@ public abstract class BaseSource
             Configurable {
 
     private static final Logger logger = LoggerFactory.getLogger(BaseSource.class);
+    private static final Set<String> ALLOWED_MSG_FACTORY_CLASSES =
+            Collections.singleton(InLongMessageFactory.class.getName());
 
     protected Context context;
     // whether source reject service
@@ -430,6 +434,12 @@ public abstract class BaseSource
     public ChannelInitializer getChannelInitializerFactory() {
         ChannelInitializer fac = null;
         logger.info(this.getName() + " load msgFactory=" + msgFactoryName);
+        if (!ALLOWED_MSG_FACTORY_CLASSES.contains(msgFactoryName)) {
+            logger.error("{} start error, msgFactory {} is not in the allowed list",
+                    this.getName(), msgFactoryName);
+            stop();
+            throw new FlumeException("msgFactory " + msgFactoryName + " is not in the allowed list");
+        }
         try {
             Class<? extends ChannelInitializer> clazz =
                     (Class<? extends ChannelInitializer>) Class.forName(msgFactoryName);
