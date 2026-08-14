@@ -378,6 +378,16 @@ public class Application {
     }
 
     /**
+     * Returns true if the given monitor class name is within an allowed package namespace.
+     * Only classes from the Apache Flume or Apache InLong packages may be loaded via reflection.
+     */
+    private static boolean isAllowedMonitorClass(String className) {
+        return className != null
+                && (className.startsWith("org.apache.flume.")
+                        || className.startsWith("org.apache.inlong."));
+    }
+
+    /**
      * Load monitoring
      */
     @SuppressWarnings("unchecked")
@@ -392,7 +402,11 @@ public class Application {
                     // Is it a known type?
                     klass = MonitoringType.valueOf(monitorType.toUpperCase(Locale.ENGLISH)).getMonitorClass();
                 } catch (Exception e) {
-                    // Not a known type, use FQCN
+                    // Not a known type, validate against allowed packages before loading via reflection
+                    if (!isAllowedMonitorClass(monitorType)) {
+                        LOGGER.warn("Monitor class '{}' is not in an allowed package; skipping load.", monitorType);
+                        return;
+                    }
                     klass = (Class<? extends MonitorService>) Class.forName(monitorType);
                 }
                 this.monitorServer = klass.getDeclaredConstructor().newInstance();
