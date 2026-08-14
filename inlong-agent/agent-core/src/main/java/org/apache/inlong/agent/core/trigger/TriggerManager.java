@@ -34,8 +34,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -49,6 +53,12 @@ import static org.apache.inlong.agent.constant.JobConstants.JOB_ID;
 public class TriggerManager extends AbstractDaemon {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TriggerManager.class);
+    private static final Set<String> ALLOWED_TRIGGER_CLASSES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.agent.plugin.trigger.DirectoryTrigger",
+                    "org.apache.inlong.agent.plugin.trigger.FormatDateDirectoryTrigger",
+                    "org.apache.inlong.agent.plugin.trigger.CronTrigger"
+            )));
     private final AgentManager manager;
     private final TriggerProfileDb triggerProfileDB;
     private final ConcurrentHashMap<String, Trigger> triggerMap;
@@ -73,7 +83,12 @@ public class TriggerManager extends AbstractDaemon {
      */
     public boolean restoreTrigger(TriggerProfile triggerProfile) {
         try {
-            Class<?> triggerClass = Class.forName(triggerProfile.get(JobConstants.JOB_TRIGGER));
+            String triggerClassName = triggerProfile.get(JobConstants.JOB_TRIGGER);
+            if (!ALLOWED_TRIGGER_CLASSES.contains(triggerClassName)) {
+                LOGGER.warn("trigger class {} is not in the allowed list, skipping", triggerClassName);
+                return false;
+            }
+            Class<?> triggerClass = Class.forName(triggerClassName);
             Trigger trigger = (Trigger) triggerClass.newInstance();
             String triggerId = triggerProfile.get(JOB_ID);
             if (triggerMap.containsKey(triggerId)) {
