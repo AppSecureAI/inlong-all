@@ -39,6 +39,7 @@ import org.apache.inlong.tubemq.server.master.metamanage.metastore.dao.entity.To
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.apache.commons.cli.CommandLine;
+import org.apache.commons.io.serialization.ValidatingObjectInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * CliMetaDataBRU, metadata backup and recovery utility.
@@ -1709,7 +1711,7 @@ public class CliMetaDataBRU extends CliAbstractBase {
             }
             if (file.exists()) {
                 fis = new FileInputStream(file);
-                is = new ObjectInputStream(fis);
+                is = createSafeObjectInputStream(fis);
                 Object entry = is.readObject();
                 fis.close();
                 return entry;
@@ -1728,6 +1730,35 @@ public class CliMetaDataBRU extends CliAbstractBase {
                 }
             }
         }
+    }
+
+    /**
+     * Create a type-safe ObjectInputStream that only allows deserialization
+     * of the known entity classes used by this backup/restore utility.
+     *
+     * @param is    the source FileInputStream
+     * @return      a ValidatingObjectInputStream restricted to allowed types
+     * @throws IOException  if the stream cannot be created
+     */
+    private ObjectInputStream createSafeObjectInputStream(FileInputStream is) throws IOException {
+        ValidatingObjectInputStream vois = new ValidatingObjectInputStream(is);
+        vois.accept(
+                HashMap.class,
+                String.class,
+                Date.class,
+                AtomicLong.class,
+                BaseEntity.class,
+                ClusterSettingEntity.class,
+                BrokerConfEntity.class,
+                TopicCtrlEntity.class,
+                TopicDeployEntity.class,
+                GroupResCtrlEntity.class,
+                GroupConsumeCtrlEntity.class,
+                TopicPropGroup.class,
+                EnableStatus.class,
+                ManageStatus.class,
+                TopicStatus.class);
+        return vois;
     }
 
     /**
