@@ -64,6 +64,11 @@ services:
   dashboard:
     image: inlong/dashboard:${VERSION_TAG}
     container_name: dashboard
+    read_only: true
+    tmpfs:
+      - /var/run
+      - /var/cache/nginx
+      - /tmp
     depends_on:
       - manager
     ports:
