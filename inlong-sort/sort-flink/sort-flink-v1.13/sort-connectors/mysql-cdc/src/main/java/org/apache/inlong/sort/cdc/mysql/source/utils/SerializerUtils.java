@@ -28,13 +28,40 @@ import org.apache.flink.core.memory.DataOutputSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InvalidClassException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.ObjectStreamClass;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Utils for serialization and deserialization.
  */
 public class SerializerUtils {
+
+    /** Allowlist of Java types permitted during split boundary deserialization. */
+    private static final Set<String> SPLIT_BOUNDARY_ALLOWED_CLASSES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "[Ljava.lang.Object;",
+                    "java.lang.Byte",
+                    "java.lang.Short",
+                    "java.lang.Integer",
+                    "java.lang.Long",
+                    "java.lang.Float",
+                    "java.lang.Double",
+                    "java.lang.Boolean",
+                    "java.lang.String",
+                    "java.math.BigDecimal",
+                    "java.math.BigInteger",
+                    "java.sql.Date",
+                    "java.sql.Time",
+                    "java.sql.Timestamp",
+                    "java.util.Date",
+                    "[B"
+            )));
 
     private SerializerUtils() {
     }
@@ -89,7 +116,17 @@ public class SerializerUtils {
     public static Object[] serializedStringToRow(String serialized) {
         try (final ByteArrayInputStream bis =
                 new ByteArrayInputStream(HexConverter.convertFromHex(serialized));
-                ObjectInputStream ois = new ObjectInputStream(bis)) {
+                ObjectInputStream ois = new ObjectInputStream(bis) {
+                    @Override
+                    protected Class<?> resolveClass(ObjectStreamClass desc)
+                            throws IOException, ClassNotFoundException {
+                        if (!SPLIT_BOUNDARY_ALLOWED_CLASSES.contains(desc.getName())) {
+                            throw new InvalidClassException(
+                                    "Unauthorized deserialization of class: " + desc.getName());
+                        }
+                        return super.resolveClass(desc);
+                    }
+                }) {
             return (Object[]) ois.readObject();
         } catch (Exception e) {
             throw new DebeziumException(
