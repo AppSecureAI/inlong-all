@@ -105,7 +105,7 @@ func (n *Node) SetHost(host string) {
 
 // SetAddress sets the address.
 func (n *Node) SetAddress(address string) error {
-	port, err := strconv.Atoi(strings.Split(address, ":")[1])
+	port, err := strconv.ParseUint(strings.Split(address, ":")[1], 10, 32)
 	if err != nil {
 		return err
 	}
