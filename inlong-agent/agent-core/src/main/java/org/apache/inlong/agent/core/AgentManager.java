@@ -39,7 +39,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.lang.reflect.Constructor;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -54,6 +58,9 @@ import static org.apache.inlong.agent.constant.JobConstants.JOB_TRIGGER;
 public class AgentManager extends AbstractDaemon {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AgentManager.class);
+    private static final Set<String> ALLOWED_DB_CLASSES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    AgentConstants.DEFAULT_AGENT_DB_CLASSNAME)));
     private final JobManager jobManager;
     private final TaskManager taskManager;
     private final TriggerManager triggerManager;
@@ -115,9 +122,13 @@ public class AgentManager extends AbstractDaemon {
         try {
             // db is a required component, so if not init correctly,
             // throw exception and stop running.
-            return (Db) Class.forName(conf.get(
-                    AgentConstants.AGENT_DB_CLASSNAME, AgentConstants.DEFAULT_AGENT_DB_CLASSNAME))
-                    .newInstance();
+            String dbClassName = conf.get(
+                    AgentConstants.AGENT_DB_CLASSNAME, AgentConstants.DEFAULT_AGENT_DB_CLASSNAME);
+            if (!ALLOWED_DB_CLASSES.contains(dbClassName)) {
+                LOGGER.warn("Db class configuration rejected, using default");
+                dbClassName = AgentConstants.DEFAULT_AGENT_DB_CLASSNAME;
+            }
+            return (Db) Class.forName(dbClassName).newInstance();
         } catch (Exception ex) {
             throw new UnsupportedClassVersionError(ex.getMessage());
         }
