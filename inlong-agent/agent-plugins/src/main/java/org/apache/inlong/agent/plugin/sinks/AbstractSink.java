@@ -28,8 +28,12 @@ import org.apache.inlong.common.metric.MetricRegister;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -51,6 +55,10 @@ import static org.apache.inlong.agent.metrics.AgentMetricItem.KEY_PLUGIN_ID;
 public abstract class AbstractSink implements Sink {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSink.class);
+    private static final Set<String> ALLOWED_MESSAGE_FILTER_CLASSES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.agent.plugin.filter.DefaultMessageFilter"
+            )));
     protected String inlongGroupId;
     protected String inlongStreamId;
 
@@ -70,8 +78,13 @@ public abstract class AbstractSink implements Sink {
     @Override
     public MessageFilter initMessageFilter(JobProfile jobConf) {
         if (jobConf.hasKey(AGENT_MESSAGE_FILTER_CLASSNAME)) {
+            String className = jobConf.get(AGENT_MESSAGE_FILTER_CLASSNAME);
+            if (!ALLOWED_MESSAGE_FILTER_CLASSES.contains(className)) {
+                LOGGER.error("rejected message filter class not in allowlist: {}", className);
+                return null;
+            }
             try {
-                return (MessageFilter) Class.forName(jobConf.get(AGENT_MESSAGE_FILTER_CLASSNAME))
+                return (MessageFilter) Class.forName(className)
                         .getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 LOGGER.error("init message filter error", e);
