@@ -220,10 +220,10 @@ public class InstantiationUtil {
                 throws IOException, ClassNotFoundException {
             ObjectStreamClass streamClassDescriptor = super.readClassDescriptor();
 
-            try {
-                Class.forName(streamClassDescriptor.getName(), false, classLoader);
-            } catch (ClassNotFoundException ignored) {
-                // ignore this exception
+            if (!isPermittedForDescriptorResolution(streamClassDescriptor.getName())) {
+                LOG.warn("Skipping descriptor resolution for class not in deserialization allowlist: {}",
+                        streamClassDescriptor.getName());
+                return streamClassDescriptor;
             }
 
             final Class localClass = resolveClass(streamClassDescriptor);
@@ -243,6 +243,25 @@ public class InstantiationUtil {
             }
 
             return streamClassDescriptor;
+        }
+
+        /**
+         * Returns true only for classes that may require serialVersionUID patching:
+         * classes explicitly registered in the exact-FQCN {@code compatibleClasses} allowlist,
+         * or Scala/JVM anonymous classes identifiable by naming convention.
+         */
+        private static boolean isPermittedForDescriptorResolution(String className) {
+            if (className == null || className.isEmpty()) {
+                return false;
+            }
+            // Exact FQCN allowlist: classes explicitly registered as serialVersionUID-compatible
+            if (compatibleClasses.contains(className)) {
+                return true;
+            }
+            // Scala and JVM anonymous class patterns detectable by naming convention
+            return className.contains("$anon$")
+                    || className.contains("$anonfun")
+                    || className.contains("$macro$");
         }
 
     }
