@@ -191,7 +191,7 @@ func Ipv4ToInt(ipv4Addr string) int32 {
 	andNums := [4]uint32{0xFF000000, 0xFF0000, 0xFF00, 0xFF}
 
 	for i := 3; i >= 0; i-- {
-		ipNum, _ := strconv.Atoi(ipv4Vec[i])
+		ipNum, _ := strconv.ParseUint(ipv4Vec[i], 10, 8)
 		res |= (uint32(ipNum) << (8 * (3 - i))) & andNums[i]
 	}
 
