@@ -30,7 +30,10 @@ import org.apache.flink.util.InstantiationUtil;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.DocWriteRequest;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.apache.inlong.sort.elasticsearch.table.ElasticsearchOptions.FAILURE_HANDLER_OPTION;
@@ -41,6 +44,16 @@ import static org.apache.inlong.sort.elasticsearch.table.ElasticsearchOptions.HO
  */
 @Internal
 final class Elasticsearch7Configuration extends ElasticsearchConfiguration {
+
+    private static final Map<String, Class<?>> FAILURE_HANDLER_REGISTRY;
+    static {
+        Map<String, Class<?>> registry = new HashMap<>();
+        registry.put(NoOpFailureHandler.class.getName(), NoOpFailureHandler.class);
+        registry.put(IgnoringFailureHandler.class.getName(), IgnoringFailureHandler.class);
+        registry.put(RetryRejectedExecutionFailureHandler.class.getName(),
+                RetryRejectedExecutionFailureHandler.class);
+        FAILURE_HANDLER_REGISTRY = Collections.unmodifiableMap(registry);
+    }
 
     Elasticsearch7Configuration(ReadableConfig config, ClassLoader classLoader) {
         super(config, classLoader);
@@ -93,14 +106,12 @@ final class Elasticsearch7Configuration extends ElasticsearchConfiguration {
                 failureHandler = new RetryRejectedExecutionFailureHandler();
                 break;
             default:
-                try {
-                    Class<?> failureHandlerClass = Class.forName(value, false, getClassLoader());
-                    failureHandler = (ActionRequestFailureHandler<DocWriteRequest<?>>) InstantiationUtil
-                            .instantiate(failureHandlerClass);
-                } catch (ClassNotFoundException e) {
-                    throw new ValidationException(
-                            "Could not instantiate the failure handler class: " + value, e);
+                Class<?> handlerClass = FAILURE_HANDLER_REGISTRY.get(value);
+                if (handlerClass == null) {
+                    throw new ValidationException("Invalid failure handler specification.");
                 }
+                failureHandler = (ActionRequestFailureHandler<DocWriteRequest<?>>) InstantiationUtil
+                        .instantiate(handlerClass);
                 break;
         }
         return failureHandler;
