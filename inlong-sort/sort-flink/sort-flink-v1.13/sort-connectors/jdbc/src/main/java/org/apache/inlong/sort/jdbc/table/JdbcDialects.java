@@ -25,10 +25,13 @@ import org.apache.inlong.sort.jdbc.dialect.TDSQLPostgresDialect;
 import org.apache.flink.connector.jdbc.dialect.JdbcDialect;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Default JDBC dialects.
@@ -38,6 +41,15 @@ public final class JdbcDialects {
     private static final List<JdbcDialect> DIALECTS = new ArrayList<>();
 
     private static final Map<String, JdbcDialect> CUSTOM_DIALECTS = new LinkedHashMap<>();
+
+    private static final Set<String> ALLOWED_DIALECT_CLASSES = new HashSet<>(Arrays.asList(
+            "org.apache.inlong.sort.jdbc.dialect.ClickHouseDialect",
+            "org.apache.inlong.sort.jdbc.dialect.GreenplumDialect",
+            "org.apache.inlong.sort.jdbc.dialect.PostgresDialect",
+            "org.apache.inlong.sort.jdbc.dialect.MySQLDialect",
+            "org.apache.inlong.sort.jdbc.dialect.OracleDialect",
+            "org.apache.inlong.sort.jdbc.dialect.SqlServerDialect",
+            "org.apache.inlong.sort.jdbc.dialect.TDSQLPostgresDialect"));
 
     static {
         DIALECTS.add(new MySQLDialect());
@@ -70,6 +82,9 @@ public final class JdbcDialects {
      * Fetch the JdbcDialect class corresponding to a given database url.
      */
     public static Optional<JdbcDialect> register(String dialectImpl) {
+        if (!ALLOWED_DIALECT_CLASSES.contains(dialectImpl)) {
+            throw new IllegalArgumentException("Dialect class not in the allowed list: " + dialectImpl);
+        }
         try {
             JdbcDialect dialect = (JdbcDialect) Class.forName(dialectImpl).newInstance();
             CUSTOM_DIALECTS.put(dialectImpl, dialect);
