@@ -67,8 +67,8 @@ import javax.annotation.PostConstruct;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -238,19 +238,28 @@ public class AuditServiceImpl implements AuditService {
                     }
                 }
             } else if (AuditQuerySource.CLICKHOUSE == querySource) {
+                DateTimeFormatter ckFormatter = DateTimeFormat.forPattern(DAY_FORMAT);
+                DateTime ckDate = ckFormatter.parseDateTime(request.getDt());
+                String startDate = ckDate.toString(SECOND_FORMAT);
+                String endDate = ckDate.plusDays(1).toString(SECOND_FORMAT);
                 try (Connection connection = ClickHouseConfig.getCkConnection();
-                        Statement statement = connection.createStatement();
-                        ResultSet resultSet = statement.executeQuery(
-                                toAuditCkSql(groupId, streamId, auditId, request.getDt()))) {
-                    List<AuditInfo> auditSet = new ArrayList<>();
-                    while (resultSet.next()) {
-                        AuditInfo vo = new AuditInfo();
-                        vo.setLogTs(resultSet.getString("log_ts"));
-                        vo.setCount(resultSet.getLong("total"));
-                        auditSet.add(vo);
+                        PreparedStatement pstmt = connection.prepareStatement(toAuditCkSql())) {
+                    pstmt.setString(1, groupId);
+                    pstmt.setString(2, streamId);
+                    pstmt.setString(3, auditId);
+                    pstmt.setString(4, startDate);
+                    pstmt.setString(5, endDate);
+                    try (ResultSet resultSet = pstmt.executeQuery()) {
+                        List<AuditInfo> auditSet = new ArrayList<>();
+                        while (resultSet.next()) {
+                            AuditInfo vo = new AuditInfo();
+                            vo.setLogTs(resultSet.getString("log_ts"));
+                            vo.setCount(resultSet.getLong("total"));
+                            auditSet.add(vo);
+                        }
+                        result.add(new AuditVO(auditId, auditSet,
+                                auditId.equals(getAuditId(sinkNodeType, true)) ? sinkNodeType : null));
                     }
-                    result.add(new AuditVO(auditId, auditSet,
-                            auditId.equals(getAuditId(sinkNodeType, true)) ? sinkNodeType : null));
                 }
             }
         }
@@ -308,25 +317,17 @@ public class AuditServiceImpl implements AuditService {
     }
 
     /**
-     * Convert to clickhouse search sql
+     * Convert to clickhouse search sql with parameter placeholders
      *
-     * @param groupId The groupId of inlong
-     * @param streamId The streamId of inlong
-     * @param auditId The auditId of request
-     * @param dt The datetime of request
-     * @return clickhouse sql
+     * @return clickhouse parameterized sql template
      */
-    private String toAuditCkSql(String groupId, String streamId, String auditId, String dt) {
-        DateTimeFormatter formatter = DateTimeFormat.forPattern(DAY_FORMAT);
-        DateTime date = formatter.parseDateTime(dt);
-        String startDate = date.toString(SECOND_FORMAT);
-        String endDate = date.plusDays(1).toString(SECOND_FORMAT);
+    private String toAuditCkSql() {
         return new SQL()
                 .SELECT("log_ts", "sum(count) as total")
                 .FROM("audit_data")
-                .WHERE("inlong_group_id = '" + groupId + "'", "inlong_stream_id = '" + streamId + "'",
-                        "audit_id = '" + auditId + "'")
-                .WHERE("log_ts >= '" + startDate + "'", "log_ts < '" + endDate + "'")
+                .WHERE("inlong_group_id = ?", "inlong_stream_id = ?",
+                        "audit_id = ?")
+                .WHERE("log_ts >= ?", "log_ts < ?")
                 .GROUP_BY("log_ts")
                 .ORDER_BY("log_ts")
                 .toString();
