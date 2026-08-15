@@ -51,13 +51,18 @@ import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -66,6 +71,31 @@ import java.util.function.Function;
 public class HiveWriterFactory implements Serializable {
 
     private static final long serialVersionUID = 1L;
+
+    private static final Logger LOG = LoggerFactory.getLogger(HiveWriterFactory.class);
+
+    /**
+     * Allowlist of trusted package prefixes for Hive SerDe implementations.
+     * Only classes whose fully-qualified names begin with one of these prefixes
+     * may be instantiated via reflection.
+     */
+    private static final Set<String> ALLOWED_SERDE_PACKAGES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.hadoop.hive.serde2.",
+                    "org.apache.hive.hcatalog.data.",
+                    "org.apache.hadoop.hive.ql.io.",
+                    "parquet.hive.serde.",
+                    "org.apache.inlong."
+            )));
+
+    /**
+     * Allowlist of trusted package prefixes for Hadoop CompressionCodec implementations.
+     */
+    private static final Set<String> ALLOWED_CODEC_PACKAGES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.hadoop.io.compress.",
+                    "com.hadoop.compression."
+            )));
 
     private final Class hiveOutputFormatClz;
 
@@ -145,8 +175,9 @@ public class HiveWriterFactory implements Serializable {
                 String codecStr = conf.get(HiveConf.ConfVars.COMPRESSINTERMEDIATECODEC.varname);
                 if (!StringUtils.isNullOrWhitespaceOnly(codecStr)) {
                     // noinspection unchecked
-                    Class<? extends CompressionCodec> codec = (Class<? extends CompressionCodec>) Class.forName(
-                            codecStr, true, Thread.currentThread().getContextClassLoader());
+                    Class<? extends CompressionCodec> codec = loadValidatedClass(
+                            codecStr, ALLOWED_CODEC_PACKAGES, CompressionCodec.class)
+                            .asSubclass(CompressionCodec.class);
                     FileOutputFormat.setOutputCompressorClass(conf, codec);
                 }
                 String typeStr = conf.get(HiveConf.ConfVars.COMPRESSINTERMEDIATETYPE.varname);
@@ -189,7 +220,8 @@ public class HiveWriterFactory implements Serializable {
         }
 
         JobConf jobConf = confWrapper.conf();
-        Object serdeLib = Class.forName(getStorageDescriptor().getSerdeInfo().getSerializationLib()).newInstance();
+        Object serdeLib = loadValidatedClass(getStorageDescriptor().getSerdeInfo().getSerializationLib(),
+                ALLOWED_SERDE_PACKAGES, Serializer.class, Deserializer.class).newInstance();
         Preconditions.checkArgument(serdeLib instanceof Serializer && serdeLib instanceof Deserializer,
                 "Expect a SerDe lib implementing both Serializer and Deserializer, but actually got "
                         + serdeLib.getClass().getName());
@@ -247,5 +279,35 @@ public class HiveWriterFactory implements Serializable {
         } catch (SerDeException e) {
             throw new FlinkHiveException(e);
         }
+    }
+
+    private static Class<?> loadValidatedClass(String className, Set<String> allowedPackages,
+            Class<?>... requiredTypes) throws ClassNotFoundException {
+        if (className == null || className.isEmpty()) {
+            LOG.warn("Rejected class loading: class name is null or empty");
+            throw new FlinkHiveException("Invalid class configuration: class name must not be empty");
+        }
+        boolean permitted = false;
+        for (String prefix : allowedPackages) {
+            if (className.startsWith(prefix)) {
+                permitted = true;
+                break;
+            }
+        }
+        if (!permitted) {
+            LOG.warn("Rejected class loading: class name (length={}) does not match any permitted package prefix",
+                    className.length());
+            throw new FlinkHiveException(
+                    "Invalid class configuration: class is not in the list of permitted implementations");
+        }
+        Class<?> clazz = Class.forName(className, true, Thread.currentThread().getContextClassLoader());
+        for (Class<?> requiredType : requiredTypes) {
+            if (!requiredType.isAssignableFrom(clazz)) {
+                LOG.warn("Rejected class loading: loaded class does not implement the required interface");
+                throw new FlinkHiveException(
+                        "Invalid class configuration: class does not implement the required interface");
+            }
+        }
+        return clazz;
     }
 }
