@@ -46,6 +46,10 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Simple tcp source
@@ -103,6 +107,14 @@ public class SimpleTcpSource extends AbstractSource implements Configurable, Eve
 
     private static int SEND_BUFFER_MAX_SIZE = 16 * 1024 * 1024;
 
+    private static final Set<String> ALLOWED_SERVICE_DECODERS =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.audit.source.DefaultServiceDecoder")));
+
+    private static final Set<String> ALLOWED_MSG_FACTORIES =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.audit.source.ServerMessageFactory")));
+
     protected boolean enableBusyWait = false;
 
     protected int acceptorThreads = 1;
@@ -113,6 +125,12 @@ public class SimpleTcpSource extends AbstractSource implements Configurable, Eve
         super();
         allChannels = new DefaultChannelGroup("DefaultAuditChannelGroup",
                 GlobalEventExecutor.INSTANCE);
+    }
+
+    private static void validateAllowedClassName(String className, Set<String> allowedClasses) {
+        if (!allowedClasses.contains(className)) {
+            throw new FlumeException("Class name not in allowed list: " + className);
+        }
     }
 
     @Override
@@ -153,8 +171,10 @@ public class SimpleTcpSource extends AbstractSource implements Configurable, Eve
         ChannelInitializer fac = null;
 
         try {
+            validateAllowedClassName(serviceDecoderName, ALLOWED_SERVICE_DECODERS);
             ServiceDecoder serviceDecoder =
                     (ServiceDecoder) Class.forName(serviceDecoderName).newInstance();
+            validateAllowedClassName(msgFactoryName, ALLOWED_MSG_FACTORIES);
             Class<? extends ChannelInitializer> clazz =
                     (Class<? extends ChannelInitializer>) Class.forName(msgFactoryName);
             Constructor ctor =
