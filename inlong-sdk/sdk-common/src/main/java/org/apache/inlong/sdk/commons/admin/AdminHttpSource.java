@@ -52,9 +52,12 @@ import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * AdminHttpSource
@@ -74,6 +77,13 @@ public class AdminHttpSource extends SslContextAwareAbstractSource
      */
 
     private static final Logger LOG = LoggerFactory.getLogger(HTTPSource.class);
+
+    private static final Set<String> ALLOWED_HANDLER_PACKAGES = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    "org.apache.inlong.",
+                    "org.apache.flume."
+            )));
+
     private volatile Integer port;
     private volatile Server srv;
     private volatile String host;
@@ -104,6 +114,13 @@ public class AdminHttpSource extends SslContextAwareAbstractSource
             String handlerClassName = context.getString(
                     HTTPSourceConfigurationConstants.CONFIG_HANDLER,
                     HTTPSourceConfigurationConstants.DEFAULT_HANDLER).trim();
+
+            if (!isAllowedHandlerClass(handlerClassName)) {
+                LOG.error("Handler class '{}' is not in the allowed package list. "
+                        + "Allowed packages: {}", handlerClassName, ALLOWED_HANDLER_PACKAGES);
+                throw new SecurityException(
+                        "Handler class not in allowed packages: " + handlerClassName);
+            }
 
             @SuppressWarnings("unchecked")
             Class<? extends AdminHttpSourceHandler> clazz = (Class<? extends AdminHttpSourceHandler>) Class
@@ -302,6 +319,15 @@ public class AdminHttpSource extends SslContextAwareAbstractSource
         handleDeprecatedParameter(context, "keystore-password", "keystorePassword");
 
         super.configureSsl(context);
+    }
+
+    private static boolean isAllowedHandlerClass(String className) {
+        for (String prefix : ALLOWED_HANDLER_PACKAGES) {
+            if (className.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
