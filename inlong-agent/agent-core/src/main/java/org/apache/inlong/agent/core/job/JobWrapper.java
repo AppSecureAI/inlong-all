@@ -43,11 +43,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -62,6 +65,23 @@ import static org.apache.inlong.agent.constant.JobConstants.JOB_OFFSET_DELIMITER
 public class JobWrapper extends AbstractStateWrapper {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(JobWrapper.class);
+    private static final Set<String> ALLOWED_PLUGIN_CLASSES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "org.apache.inlong.agent.plugin.sources.TextFileSource",
+            "org.apache.inlong.agent.plugin.sources.KafkaSource",
+            "org.apache.inlong.agent.plugin.sources.BinlogSource",
+            "org.apache.inlong.agent.plugin.sources.MongoDBSource",
+            "org.apache.inlong.agent.plugin.sources.DatabaseSqlSource",
+            "org.apache.inlong.agent.plugin.sources.PostgreSQLSource",
+            "org.apache.inlong.agent.plugin.sources.OracleSource",
+            "org.apache.inlong.agent.plugin.sources.SQLServerSource",
+            "org.apache.inlong.agent.plugin.sources.RedisSource",
+            "org.apache.inlong.agent.plugin.sources.MqttSource",
+            "org.apache.inlong.agent.plugin.sinks.ProxySink",
+            "org.apache.inlong.agent.plugin.sinks.KafkaSink",
+            "org.apache.inlong.agent.plugin.sinks.PulsarSink",
+            "org.apache.inlong.agent.plugin.sinks.ConsoleSink",
+            "org.apache.inlong.agent.plugin.channel.MemoryChannel"
+    )));
 
     private final AgentConfiguration agentConf;
     private final TaskManager taskManager;
@@ -169,6 +189,23 @@ public class JobWrapper extends AbstractStateWrapper {
     }
 
     /**
+     * Load a plugin class by name, restricting instantiation to the explicit allowlist.
+     */
+    @SuppressWarnings("deprecation")
+    private <T> T loadPlugin(String className, Class<T> type) throws Exception {
+        if (!ALLOWED_PLUGIN_CLASSES.contains(className)) {
+            LOGGER.warn("Plugin class not in allowlist, rejecting load request for type: {}", type.getName());
+            return null;
+        }
+        Class<?> clazz = Class.forName(className);
+        if (!type.isAssignableFrom(clazz)) {
+            LOGGER.warn("Plugin class type mismatch, rejecting load request for type: {}", type.getName());
+            return null;
+        }
+        return type.cast(clazz.newInstance());
+    }
+
+    /**
      * Submit jobProfile or add taskProfile as it's subtask
      */
     public void submit(JobProfile taskProfile) {
@@ -181,11 +218,20 @@ public class JobWrapper extends AbstractStateWrapper {
             Preconditions.checkArgument(jobProfile.get(JobConstants.JOB_SINK)
                     .equals(taskProfile.get(JobConstants.JOB_SINK, "Subtask sink should be same")));
             LOGGER.info("job id: {} submit new task {}.", job.getJobInstanceId(), taskProfile.toJsonStr());
-            Source source = (Source) Class.forName(jobProfile.get(JobConstants.JOB_SOURCE_CLASS)).newInstance();
+            Source source = loadPlugin(jobProfile.get(JobConstants.JOB_SOURCE_CLASS), Source.class);
+            if (source == null) {
+                return;
+            }
             for (Reader reader : source.split(taskProfile)) {
-                Sink writer = (Sink) Class.forName(jobProfile.get(JobConstants.JOB_SINK)).newInstance();
+                Sink writer = loadPlugin(jobProfile.get(JobConstants.JOB_SINK), Sink.class);
+                if (writer == null) {
+                    continue;
+                }
                 writer.setSourceName(reader.getReadSource());
-                Channel channel = (Channel) Class.forName(jobProfile.get(JobConstants.JOB_CHANNEL)).newInstance();
+                Channel channel = loadPlugin(jobProfile.get(JobConstants.JOB_CHANNEL), Channel.class);
+                if (channel == null) {
+                    continue;
+                }
                 String taskId = String.format("%s_%d", job.getJobInstanceId(), index.incrementAndGet());
                 jobProfile.set(reader.getReadSource(), DigestUtils.md5Hex(reader.getReadSource()));
                 Task task = new Task(taskId, reader, writer, channel, taskProfile);
