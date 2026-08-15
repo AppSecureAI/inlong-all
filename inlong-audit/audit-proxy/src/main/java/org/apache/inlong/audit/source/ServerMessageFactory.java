@@ -29,12 +29,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Constructor;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 public class ServerMessageFactory extends ChannelInitializer<SocketChannel> {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServerMessageFactory.class);
     private static final int DEFAULT_READ_IDLE_TIME = 70 * 60 * 1000;
+    private static final Set<String> ALLOWED_HANDLER_CLASSES = Collections.singleton(
+            "org.apache.inlong.audit.source.ServerMessageHandler");
     private AbstractSource source;
     private ChannelProcessor processor;
     private ChannelGroup allChannels;
@@ -78,6 +82,10 @@ public class ServerMessageFactory extends ChannelInitializer<SocketChannel> {
 
         if (processor != null) {
             try {
+                if (!ALLOWED_HANDLER_CLASSES.contains(messageHandlerName)) {
+                    LOG.warn("Rejected disallowed message handler class: {}", messageHandlerName);
+                    return;
+                }
                 Class<? extends ChannelInboundHandlerAdapter> clazz =
                         (Class<? extends ChannelInboundHandlerAdapter>) Class.forName(messageHandlerName);
 
