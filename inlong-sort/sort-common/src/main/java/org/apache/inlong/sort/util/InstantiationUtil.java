@@ -149,6 +149,7 @@ public class InstantiationUtil {
                 // define proxy in class loader of non-public interface(s), if any
                 Class<?>[] classObjs = new Class<?>[interfaces.length];
                 for (int i = 0; i < interfaces.length; i++) {
+                    validateClassName(interfaces[i]);
                     Class<?> cl = Class.forName(interfaces[i], false, classLoader);
                     if ((cl.getModifiers() & Modifier.PUBLIC) == 0) {
                         if (hasNonPublicInterface) {
@@ -188,6 +189,29 @@ public class InstantiationUtil {
             primitiveClasses.put("float", float.class);
             primitiveClasses.put("double", double.class);
             primitiveClasses.put("void", void.class);
+        }
+
+        private static final Set<String> ALLOWED_PACKAGE_PREFIXES;
+
+        static {
+            ALLOWED_PACKAGE_PREFIXES = new HashSet<>();
+            ALLOWED_PACKAGE_PREFIXES.add("java.");
+            ALLOWED_PACKAGE_PREFIXES.add("javax.");
+            ALLOWED_PACKAGE_PREFIXES.add("org.apache.inlong.");
+            ALLOWED_PACKAGE_PREFIXES.add("org.apache.flink.");
+            ALLOWED_PACKAGE_PREFIXES.add("scala.");
+        }
+
+        private static void validateClassName(String className) throws ClassNotFoundException {
+            for (String prefix : ALLOWED_PACKAGE_PREFIXES) {
+                if (className.startsWith(prefix)) {
+                    return;
+                }
+            }
+            LOG.warn("Blocked attempt to load non-allowlisted class during proxy resolution: {}",
+                    className);
+            throw new ClassNotFoundException(
+                    "Class not in allowlist for deserialization: " + className);
         }
     }
 
