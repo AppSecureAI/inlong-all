@@ -93,11 +93,11 @@ func NewPartition(partition string) (*Partition, error) {
 		return nil, errs.ErrInvalidPartitionString
 	}
 	topic := topicPartitionID[0]
-	partitionID, err := strconv.Atoi(topicPartitionID[1])
+	partitionID, err := strconv.ParseInt(topicPartitionID[1], 10, 32)
 	if err != nil {
 		return nil, err
 	}
-	partitionKey := strconv.Itoa(int(b.id)) + ":" + topic + ":" + strconv.Itoa(partitionID)
+	partitionKey := strconv.Itoa(int(b.id)) + ":" + topic + ":" + strconv.FormatInt(partitionID, 10)
 	item := flowctrl.NewItem()
 	item.SetTp(flowctrl.RequestFrequencyControl)
 	return &Partition{
