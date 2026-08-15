@@ -55,7 +55,7 @@ jobs:
           echo "AppSecAI workflow preflight passed for ${GITHUB_REF_NAME}."
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
@@ -69,8 +69,9 @@ jobs:
           ./opengrep scan \
             --sarif \
             --sarif-output=opengrep-results.sarif \
+            --config auto \
             --config .opengrep/inlong-cve-2023-35088.yml \
-            inlong-manager/manager-service/src/main/java/org/apache/inlong/manager/service/core/impl/AuditServiceImpl.java
+            . || true
 
       - name: Verify CVE-2023-35088 finding
         shell: bash
@@ -106,7 +107,7 @@ jobs:
           PY
 
       - name: AppSecAI Security Analysis
-        uses: AppSecureAI/automation-action@v1
+        uses: AppSecureAI/automation-action@83b6fa3829e33724beb5bbedc4f6976b814c9ff9 # v1
         with:
           api-url: https://gh.intg.appsecai.net
           file: opengrep-results.sarif
