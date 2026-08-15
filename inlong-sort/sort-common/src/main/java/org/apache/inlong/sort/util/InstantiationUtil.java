@@ -122,6 +122,10 @@ public class InstantiationUtil {
             if (classLoader != null) {
                 String name = desc.getName();
                 try {
+                    if (!isAllowedClass(name)) {
+                        LOG.warn("Blocked attempt to load disallowed class during deserialization: {}", name);
+                        throw new ClassNotFoundException("Class not in deserialization allowlist: " + name);
+                    }
                     return Class.forName(name, false, classLoader);
                 } catch (ClassNotFoundException ex) {
                     // check if class is a primitive class
@@ -149,6 +153,10 @@ public class InstantiationUtil {
                 // define proxy in class loader of non-public interface(s), if any
                 Class<?>[] classObjs = new Class<?>[interfaces.length];
                 for (int i = 0; i < interfaces.length; i++) {
+                    if (!isAllowedClass(interfaces[i])) {
+                        LOG.warn("Blocked attempt to load disallowed proxy interface during deserialization: {}", interfaces[i]);
+                        throw new ClassNotFoundException("Class not in deserialization allowlist: " + interfaces[i]);
+                    }
                     Class<?> cl = Class.forName(interfaces[i], false, classLoader);
                     if ((cl.getModifiers() & Modifier.PUBLIC) == 0) {
                         if (hasNonPublicInterface) {
@@ -175,6 +183,55 @@ public class InstantiationUtil {
         }
 
         // ------------------------------------------------
+
+        private static final Set<String> ALLOWED_CLASS_PREFIXES = new HashSet<>();
+
+        static {
+            // Standard Java library classes
+            ALLOWED_CLASS_PREFIXES.add("java.");
+            ALLOWED_CLASS_PREFIXES.add("javax.");
+            ALLOWED_CLASS_PREFIXES.add("sun.");
+            ALLOWED_CLASS_PREFIXES.add("com.sun.");
+            // InLong project classes
+            ALLOWED_CLASS_PREFIXES.add("org.apache.inlong.");
+            // Flink classes (this utility is adapted from Flink)
+            ALLOWED_CLASS_PREFIXES.add("org.apache.flink.");
+            // Scala runtime classes
+            ALLOWED_CLASS_PREFIXES.add("scala.");
+            // Avro classes (referenced in FailureTolerantObjectInputStream)
+            ALLOWED_CLASS_PREFIXES.add("org.apache.avro.");
+            // Hadoop classes commonly used in InLong
+            ALLOWED_CLASS_PREFIXES.add("org.apache.hadoop.");
+            // Common serialization and utility libraries
+            ALLOWED_CLASS_PREFIXES.add("com.google.common.");
+            ALLOWED_CLASS_PREFIXES.add("com.fasterxml.jackson.");
+        }
+
+        /**
+         * Checks whether the given class name is permitted for loading during deserialization.
+         * Array type descriptors (starting with '[') are allowed unconditionally since their
+         * element types are validated separately. All other class names must match a known-safe
+         * package prefix to prevent unsafe reflection (CWE-470).
+         *
+         * @param name the fully-qualified class name to validate
+         * @return true if the class is in the deserialization allowlist, false otherwise
+         */
+        private static boolean isAllowedClass(String name) {
+            if (name == null || name.isEmpty()) {
+                return false;
+            }
+            // Array type descriptors (e.g., "[B", "[Ljava.lang.String;") are allowed;
+            // element types are resolved and validated through subsequent resolveClass calls.
+            if (name.startsWith("[")) {
+                return true;
+            }
+            for (String prefix : ALLOWED_CLASS_PREFIXES) {
+                if (name.startsWith(prefix)) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         private static final HashMap<String, Class<?>> primitiveClasses = new HashMap<>(9);
 
