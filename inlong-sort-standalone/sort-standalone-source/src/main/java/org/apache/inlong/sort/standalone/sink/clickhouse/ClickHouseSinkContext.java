@@ -45,10 +45,14 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -66,6 +70,10 @@ public class ClickHouseSinkContext extends SinkContext {
     public static final String KEY_JDBC_USERNAME = "jdbcUsername";
     public static final String KEY_JDBC_PASSWORD = "jdbcPassword";
     public static final String KEY_EVENT_HANDLER = "clickHouseEventHandler";
+    public static final Set<String> ALLOWED_JDBC_DRIVERS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList(
+                    DEFAULT_JDBC_DRIVER,
+                    "com.clickhouse.jdbc.ClickHouseDriver")));
 
     private Context parentContext;
     private String nodeId;
@@ -122,6 +130,10 @@ public class ClickHouseSinkContext extends SinkContext {
             this.jdbcUrl = currentContext.getString(KEY_JDBC_URL);
             this.jdbcUsername = currentContext.getString(KEY_JDBC_USERNAME);
             this.jdbcPassword = currentContext.getString(KEY_JDBC_PASSWORD);
+            if (!ALLOWED_JDBC_DRIVERS.contains(this.jdbcDriver)) {
+                LOG.error("Rejected unauthorized JDBC driver class: {}", this.jdbcDriver);
+                return;
+            }
             Class.forName(this.jdbcDriver);
             // load DB field
             this.initIdConfig(newIdConfigMap);
