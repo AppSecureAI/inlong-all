@@ -74,6 +74,9 @@ public class MixUtils {
                     exceptionMsg.split(TokenConstants.SEGMENT_SEP);
             if (strExceptionMsgSet.length > 0) {
                 if (!TStringUtils.isBlank(strExceptionMsgSet[0])) {
+                    if (!isAllowedExceptionClass(strExceptionMsgSet[0])) {
+                        return new RemoteException(exceptionMsg);
+                    }
                     Class clazz = Class.forName(strExceptionMsgSet[0]);
                     if (clazz != null) {
                         Constructor<?> ctor = clazz.getConstructor(String.class);
@@ -103,6 +106,13 @@ public class MixUtils {
             //
         }
         return new RemoteException(exceptionMsg);
+    }
+
+    private static boolean isAllowedExceptionClass(String className) {
+        return className.startsWith("org.apache.inlong.tubemq.")
+                || className.startsWith("com.tencent.tubemq.")
+                || className.startsWith("com.apache.tubemq.")
+                || className.startsWith("java.");
     }
 
 }
