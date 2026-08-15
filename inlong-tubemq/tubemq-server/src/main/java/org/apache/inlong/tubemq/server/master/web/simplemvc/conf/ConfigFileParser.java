@@ -19,14 +19,21 @@ package org.apache.inlong.tubemq.server.master.web.simplemvc.conf;
 
 import org.apache.inlong.tubemq.server.master.web.simplemvc.exception.InvalidConfigException;
 
+import org.apache.velocity.tools.generic.DateTool;
+import org.apache.velocity.tools.generic.NumberTool;
 import org.dom4j.Document;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ConfigFileParser {
 
@@ -42,6 +49,15 @@ public class ConfigFileParser {
     private static final String SPRING_SUPPORT = "spring-support";
     private static final String SPRING_IMPORT = "import";
     private static final String VELOCITY_SUPPORT = "velocity-support";
+    private static final Logger logger = LoggerFactory.getLogger(ConfigFileParser.class);
+
+    private static final Map<String, Class<?>> ALLOWED_TOOL_CLASSES;
+    static {
+        final Map<String, Class<?>> m = new HashMap<>();
+        m.put("org.apache.velocity.tools.generic.DateTool", DateTool.class);
+        m.put("org.apache.velocity.tools.generic.NumberTool", NumberTool.class);
+        ALLOWED_TOOL_CLASSES = Collections.unmodifiableMap(m);
+    }
 
     private File configFile;
 
@@ -128,8 +144,11 @@ public class ConfigFileParser {
             if (e.attribute("id") == null || e.attribute("class") == null) {
                 throw new InvalidConfigException(errorMsg("id and class", TOOL));
             }
+            Class clazz = loadAllowedToolClass(e.attribute("class").getValue());
+            if (clazz == null) {
+                throw new InvalidConfigException("Init tool failed!");
+            }
             try {
-                Class clazz = Class.forName(e.attribute("class").getValue());
                 config.registerTool(e.attribute("id").getValue(), clazz.newInstance());
             } catch (Throwable t) {
                 throw new InvalidConfigException("Init tool failed!", t);
@@ -156,6 +175,20 @@ public class ConfigFileParser {
             }
             config.setVelocityConfigFilePath(e.attribute("config-file").getValue());
         }
+    }
+
+    private Class loadAllowedToolClass(String className) {
+        if (className == null) {
+            logger.warn("Tool class loading rejected: field='class', value=null");
+            return null;
+        }
+        Class<?> clazz = ALLOWED_TOOL_CLASSES.get(className);
+        if (clazz == null) {
+            logger.warn("Tool class loading rejected: field='class', value='{}'",
+                    className.replaceAll("[\r\n]", "_"));
+            return null;
+        }
+        return clazz;
     }
 
     private String errorMsg(String attr, String elementName) {
