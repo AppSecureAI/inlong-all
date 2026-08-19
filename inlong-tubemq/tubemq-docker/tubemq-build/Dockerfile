@@ -33,5 +33,8 @@ COPY --from=protobuf /protobuf/usr/bin/* /usr/bin/
 COPY --from=protobuf /protobuf/usr/include/* /usr/include/
 COPY --from=protobuf /protobuf/usr/lib/* /usr/lib/
 # ADD settings.xml /root/.m2/
+RUN useradd --uid 1001 --create-home --shell /bin/false tubemq \
+    && chown -R 1001:1001 /tubemq
+USER 1001
 # mvn command
 ENTRYPOINT ["/usr/bin/mvn"]
