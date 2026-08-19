@@ -27,7 +27,7 @@ import org.apache.commons.collections.CollectionUtils;
 
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Random;
+import java.security.SecureRandom;
 
 /**
  * Builder of kafka topic fetcher.
@@ -73,7 +73,7 @@ public class KafkaTopicFetcherBuilderImpl extends AbstractTopicFetcherBuilder {
         interceptor = Optional.ofNullable(interceptor).orElse(new MsgTimeInterceptor());
         interceptor.configure(firstTopic);
         String key = Optional.ofNullable(fetchKey)
-                .orElse(firstTopic.getInLongCluster().getClusterId() + new Random().nextLong());
+                .orElse(firstTopic.getInLongCluster().getClusterId() + new SecureRandom().nextLong());
         TopicFetcher kafkaMultiTopicFetcher =
                 new KafkaMultiTopicsFetcher(topics, context, interceptor, deserializer, bootstrapServers, key);
         if (!kafkaMultiTopicFetcher.init()) {
